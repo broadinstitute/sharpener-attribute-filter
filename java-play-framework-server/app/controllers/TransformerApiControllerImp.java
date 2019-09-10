@@ -3,6 +3,7 @@ package controllers;
 import apimodels.GeneInfo;
 import apimodels.TransformerInfo;
 import apimodels.TransformerQuery;
+import filter.AttributeFilter;
 
 import play.mvc.Http;
 import java.util.List;
@@ -15,14 +16,12 @@ import javax.validation.constraints.*;
 public class TransformerApiControllerImp implements TransformerApiControllerImpInterface {
     @Override
     public List<GeneInfo> transformPost(TransformerQuery query) throws Exception {
-        //Do your magic!!!
-        return new ArrayList<GeneInfo>();
+    	return AttributeFilter.filter(query);
     }
 
     @Override
     public TransformerInfo transformerInfoGet() throws Exception {
-        //Do your magic!!!
-        return new TransformerInfo();
+    	return AttributeFilter.transformerInfo();
     }
 
 }
