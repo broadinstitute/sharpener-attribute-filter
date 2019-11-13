@@ -10,6 +10,13 @@ import play.mvc.Http.*;
 import play.mvc.*;
 
 import javax.inject.*;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import apimodels.ErrorMsg;
+import filter.AttributeFilter.IllegalQueryException;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import static play.mvc.Results.*;
@@ -17,9 +24,12 @@ import static play.mvc.Results.*;
 @Singleton
 public class ErrorHandler extends DefaultHttpErrorHandler {
 
+	private final ObjectMapper mapper;
+	
     @Inject
     public ErrorHandler(Configuration configuration, Environment environment, OptionalSourceMapper sourceMapper, Provider<Router> routes) {
         super(configuration, environment, sourceMapper, routes);
+        mapper = new ObjectMapper();
     }
 
     @Override
@@ -42,8 +52,18 @@ public class ErrorHandler extends DefaultHttpErrorHandler {
         //But if you want to have the error printed in the console, just delete this override
     }
 
-    private Result handleExceptions(Throwable t) {
-        //TODO: Handle exception that need special response (return a special apimodel, notFound(), etc..)
-        return ok();
-    }
+
+	private Result handleExceptions(Throwable t) {
+		if (t.getCause() instanceof IllegalQueryException) {
+			return badRequest(errorMsg(t, 400, "Bad Request"));
+		}
+		return internalServerError(errorMsg(t, 500, "Internal Server Error"));
+	}
+
+
+	private JsonNode errorMsg(Throwable t, int status, String title) {
+		Throwable cause = (t.getCause() != null) ? t.getCause() : t;
+		ErrorMsg msg = new ErrorMsg().status(status).title(title).detail(cause.getMessage()).type("about:blank");
+		return mapper.valueToTree(msg);
+	}
 }

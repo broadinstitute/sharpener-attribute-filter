@@ -46,7 +46,7 @@ public class AttributeFilter {
 	}
 
 
-	public static ArrayList<GeneInfo> filter(TransformerQuery query) {
+	public static ArrayList<GeneInfo> filter(TransformerQuery query) throws Exception {
 		Filter filter = getFilter(query);
 		ArrayList<GeneInfo> genes = new ArrayList<GeneInfo>();
 		for (GeneInfo gene : query.getGenes()) {
@@ -58,7 +58,7 @@ public class AttributeFilter {
 	}
 
 
-	private static Filter getFilter(TransformerQuery query) {
+	private static Filter getFilter(TransformerQuery query) throws Exception {
 		String operand = getOperand(query);
 		if ("==".equals(operand)) {
 			return new EqualFilter(query);
@@ -66,21 +66,17 @@ public class AttributeFilter {
 		if ("!=".equals(operand)) {
 			return new NonEqualFilter(query);
 		}
-		return new Filter(query) {
-			boolean filter(GeneInfo gene) {
-				return false;
-			}
-		};
+		throw new IllegalQueryException("wrong opperand: "+operand);
 	}
 
 
-	private static String getOperand(TransformerQuery query) {
+	private static String getOperand(TransformerQuery query) throws Exception {
 		for (Property property : query.getControls()) {
 			if (OPERAND.equals(property.getName())) {
 				return property.getValue();
 			}
 		}
-		return null;
+		throw new IllegalQueryException("operand not specified");
 	}
 
 
@@ -90,7 +86,7 @@ public class AttributeFilter {
 		protected String attributeValue = null;
 
 
-		Filter(TransformerQuery query) {
+		Filter(TransformerQuery query) throws Exception {
 			for (Property property : query.getControls()) {
 				if (ATTRIBUTE_NAME.equals(property.getName())) {
 					attributeName = property.getValue();
@@ -98,6 +94,12 @@ public class AttributeFilter {
 				if (ATTRIBUTE_VALUE.equals(property.getName())) {
 					attributeValue = property.getValue();
 				}
+			}
+			if (attributeName == null) {
+				throw new IllegalQueryException("attribute name not specified");
+			}
+			if (attributeValue == null) {
+				throw new IllegalQueryException("attribute value not specified");
 			}
 		}
 
@@ -120,7 +122,7 @@ public class AttributeFilter {
 
 	private static class EqualFilter extends Filter {
 
-		EqualFilter(TransformerQuery query) {
+		EqualFilter(TransformerQuery query) throws Exception {
 			super(query);
 		}
 
@@ -133,7 +135,7 @@ public class AttributeFilter {
 
 	private static class NonEqualFilter extends Filter {
 
-		NonEqualFilter(TransformerQuery query) {
+		NonEqualFilter(TransformerQuery query) throws Exception {
 			super(query);
 		}
 
@@ -143,4 +145,11 @@ public class AttributeFilter {
 		}
 	}
 
+
+	@SuppressWarnings("serial")
+	public static class IllegalQueryException extends Exception {
+		IllegalQueryException(String message) {
+			super(message);
+		}
+	}
 }
