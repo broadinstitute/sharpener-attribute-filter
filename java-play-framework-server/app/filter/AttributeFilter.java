@@ -1,36 +1,52 @@
 package filter;
 
 import java.util.ArrayList;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.io.IOException;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 
 import apimodels.Attribute;
 import apimodels.GeneInfo;
-import apimodels.Parameter;
 import apimodels.Property;
 import apimodels.TransformerInfo;
 import apimodels.TransformerQuery;
 
 public class AttributeFilter {
 
-	private static final String TRANSFORMER_NAME = "Attribute filter";
-	private static final String ATTRIBUTE_NAME = "attribute name";
-	private static final String ATTRIBUTE_VALUE = "attribute value";
-	private static final String OPERAND = "operand";
+
+	private static String ATTRIBUTE_NAME = "attribute name";
+	private static String OPERAND = "operand";
+	private static String ATTRIBUTE_VALUE = "attribute value";
 
 
+	private static ObjectMapper mapper = new ObjectMapper();
+	
+	static {
+		mapper.setSerializationInclusion(Include.NON_NULL);
+		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+	}
+
+	
 	public static TransformerInfo transformerInfo() {
-		TransformerInfo transformerInfo = new TransformerInfo().name(TRANSFORMER_NAME);
-		transformerInfo.function(TransformerInfo.FunctionEnum.FILTER);
-		transformerInfo.description("Remove genes according to their attribute values");
-		transformerInfo.addParametersItem(new Parameter().name(ATTRIBUTE_NAME).type(Parameter.TypeEnum.STRING));
-		transformerInfo.addParametersItem(new Parameter().name(OPERAND).type(Parameter.TypeEnum.STRING)
-				.addAllowedValuesItem("==").addAllowedValuesItem("!=")._default("=="));
-		transformerInfo.addParametersItem(new Parameter().name(ATTRIBUTE_VALUE).type(Parameter.TypeEnum.STRING));
-		transformerInfo.addRequiredAttributesItem(".gene_id");
-		return transformerInfo;
+		try {
+			String json = new String(Files.readAllBytes(Paths.get("transformer_info.json")));
+			TransformerInfo info = mapper.readValue(json, TransformerInfo.class);
+			ATTRIBUTE_NAME = info.getParameters().get(0).getName();
+			OPERAND = info.getParameters().get(1).getName();
+			ATTRIBUTE_VALUE = info.getParameters().get(2).getName();
+			return info;
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 
 
-	public static ArrayList<GeneInfo> filter(TransformerQuery query) {
+	public static ArrayList<GeneInfo> filter(TransformerQuery query) throws Exception {
 		Filter filter = getFilter(query);
 		ArrayList<GeneInfo> genes = new ArrayList<GeneInfo>();
 		for (GeneInfo gene : query.getGenes()) {
@@ -42,7 +58,7 @@ public class AttributeFilter {
 	}
 
 
-	private static Filter getFilter(TransformerQuery query) {
+	private static Filter getFilter(TransformerQuery query) throws Exception {
 		String operand = getOperand(query);
 		if ("==".equals(operand)) {
 			return new EqualFilter(query);
@@ -50,21 +66,17 @@ public class AttributeFilter {
 		if ("!=".equals(operand)) {
 			return new NonEqualFilter(query);
 		}
-		return new Filter(query) {
-			boolean filter(GeneInfo gene) {
-				return false;
-			}
-		};
+		throw new IllegalQueryException("wrong opperand: "+operand);
 	}
 
 
-	private static String getOperand(TransformerQuery query) {
+	private static String getOperand(TransformerQuery query) throws Exception {
 		for (Property property : query.getControls()) {
 			if (OPERAND.equals(property.getName())) {
 				return property.getValue();
 			}
 		}
-		return null;
+		throw new IllegalQueryException("operand not specified");
 	}
 
 
@@ -74,7 +86,7 @@ public class AttributeFilter {
 		protected String attributeValue = null;
 
 
-		Filter(TransformerQuery query) {
+		Filter(TransformerQuery query) throws Exception {
 			for (Property property : query.getControls()) {
 				if (ATTRIBUTE_NAME.equals(property.getName())) {
 					attributeName = property.getValue();
@@ -82,6 +94,12 @@ public class AttributeFilter {
 				if (ATTRIBUTE_VALUE.equals(property.getName())) {
 					attributeValue = property.getValue();
 				}
+			}
+			if (attributeName == null) {
+				throw new IllegalQueryException("attribute name not specified");
+			}
+			if (attributeValue == null) {
+				throw new IllegalQueryException("attribute value not specified");
 			}
 		}
 
@@ -104,7 +122,7 @@ public class AttributeFilter {
 
 	private static class EqualFilter extends Filter {
 
-		EqualFilter(TransformerQuery query) {
+		EqualFilter(TransformerQuery query) throws Exception {
 			super(query);
 		}
 
@@ -117,7 +135,7 @@ public class AttributeFilter {
 
 	private static class NonEqualFilter extends Filter {
 
-		NonEqualFilter(TransformerQuery query) {
+		NonEqualFilter(TransformerQuery query) throws Exception {
 			super(query);
 		}
 
@@ -127,4 +145,11 @@ public class AttributeFilter {
 		}
 	}
 
+
+	@SuppressWarnings("serial")
+	public static class IllegalQueryException extends Exception {
+		IllegalQueryException(String message) {
+			super(message);
+		}
+	}
 }
